@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import crypto from "crypto";
 import { sessionsRouter } from "./routes/sessions.routes";
 import { HttpError, sendError } from "./utils/http";
 
@@ -19,6 +20,26 @@ app.use(cors({
     callback(null, allowedOrigins.includes(origin));
   }
 }));
+
+app.use((req, res, next) => {
+  const requestId = req.header("x-request-id") ?? crypto.randomUUID();
+  res.locals.requestId = requestId;
+  res.setHeader("x-request-id", requestId);
+  const start = Date.now();
+  res.on("finish", () => {
+    const log = {
+      requestId,
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      durationMs: Date.now() - start,
+      ip: req.ip,
+      userId: (req as { userId?: string }).userId
+    };
+    console.log(JSON.stringify(log));
+  });
+  next();
+});
 app.use(express.json());
 app.use("/api", sessionsRouter);
 

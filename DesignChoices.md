@@ -36,3 +36,6 @@ Edge cases handled:
 
 ## Type Safety
 Both backend and frontend use explicit type guards for status parsing, and the frontend shares a single source of truth for allowed statuses.
+
+## Rate Limiting
+I used a lightweight in‑memory limiter for simplicity. Trade‑off: limits are per instance. For stronger global limits, a Redis‑backed limiter would be the next step.

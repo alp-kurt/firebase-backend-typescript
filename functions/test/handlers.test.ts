@@ -47,6 +47,17 @@ const makeSession = (overrides?: Partial<Session>): Session => ({
 const authHeader = (): string => "Bearer test-token";
 
 describe("session handlers", () => {
+  const originalEnv = { ...process.env };
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    verifyIdTokenMock.mockResolvedValue({ uid: "admin-user" });
+  });
+
   beforeEach(() => {
     verifyIdTokenMock.mockResolvedValue({ uid: "admin-user" });
   });
@@ -212,6 +223,15 @@ describe("session handlers", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("invalid_argument");
+  });
+
+  test("echoes x-request-id header", async () => {
+    const res = await request(app)
+      .get("/api/sessions")
+      .set("Authorization", authHeader())
+      .set("x-request-id", "req-test-123");
+
+    expect(res.headers["x-request-id"]).toBe("req-test-123");
   });
 
 });

@@ -19,11 +19,21 @@ export const sendJson = <T>(res: Response, status: number, body: T): void => {
 };
 
 export const sendError = (res: Response, err: HttpError): void => {
+  const requestId = (res.locals as { requestId?: string }).requestId;
+  const details = (() => {
+    if (!requestId) return err.details;
+    if (!err.details) return { requestId };
+    if (typeof err.details === "object" && !Array.isArray(err.details)) {
+      return { ...(err.details as Record<string, unknown>), requestId };
+    }
+    return { requestId, detail: err.details };
+  })();
+
   const body: ApiErrorBody = {
     error: {
       code: err.code,
       message: err.message,
-      details: err.details
+      details
     }
   };
 
