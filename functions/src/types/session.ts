@@ -3,18 +3,16 @@ import { Timestamp } from "firebase-admin/firestore";
 export const SESSION_STATUSES = ["pending", "active", "completed", "failed"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
-export interface Session {
+export type TimestampString = string;
+
+export interface SessionBase<TTimestamp> {
   sessionId: string;
   region: string;
   status: SessionStatus;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: TTimestamp;
+  updatedAt: TTimestamp;
 }
 
-export interface SessionResponse {
-  sessionId: string;
-  region: string;
-  status: SessionStatus;
-  createdAt: string;
-  updatedAt: string;
-}
+export type Session = SessionBase<Timestamp>;
+
+export type SessionResponse = SessionBase<TimestampString>;

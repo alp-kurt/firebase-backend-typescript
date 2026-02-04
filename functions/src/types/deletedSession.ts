@@ -1,22 +1,12 @@
 import { Timestamp } from "firebase-admin/firestore";
-import type { SessionStatus } from "./session";
+import type { SessionBase, TimestampString } from "./session";
 
-export interface DeletedSession {
-  sessionId: string;
-  region: string;
-  status: SessionStatus;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+export interface DeletedSession extends SessionBase<Timestamp> {
   deletedAt: Timestamp;
   expiresAt: Timestamp;
 }
 
-export interface DeletedSessionResponse {
-  sessionId: string;
-  region: string;
-  status: SessionStatus;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string;
-  expiresAt: string;
+export interface DeletedSessionResponse extends SessionBase<TimestampString> {
+  deletedAt: TimestampString;
+  expiresAt: TimestampString;
 }

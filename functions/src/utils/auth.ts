@@ -6,16 +6,22 @@ export interface AuthenticatedRequest extends Request {
   userId?: string;
 }
 
-const getBearerToken = (req: Request): string | null => {
+const parseBearerToken = (req: Request): string | null => {
   const header = req.headers.authorization;
-  if (!header) return null;
+  if (!header) {
+    return null;
+  }
+
   const [scheme, token] = header.split(" ");
-  if (scheme !== "Bearer" || !token) return null;
+  if (scheme !== "Bearer" || !token) {
+    return null;
+  }
+
   return token;
 };
 
 export const requireAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  const token = getBearerToken(req);
+  const token = parseBearerToken(req);
   if (!token) {
     sendError(res, new HttpError(401, "unauthenticated", "Missing Bearer token"));
     return;

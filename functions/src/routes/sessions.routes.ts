@@ -10,46 +10,42 @@ import {
   updateSessionStatusHandler,
   failSessionHandler
 } from "../handlers/sessions.handlers";
-import { requireAuth } from "../utils/auth";
-import { methodNotAllowed } from "../utils/http";
-import { rateLimit } from "../utils/rateLimit";
-import { getRateLimitConfig } from "../utils/rateLimitConfig";
+import { getRateLimitConfig } from "../utils/config";
+import { buildProtectedRoute, notAllowed, wrapHandler } from "../utils/route";
 
 export const sessionsRouter = Router();
-
-sessionsRouter.use(requireAuth);
 
 const limits = getRateLimitConfig();
 
 sessionsRouter
   .route("/sessions")
-  .get(listSessionsHandler)
-  .post(rateLimit(limits.create), createSessionHandler)
-  .all((req, res) => methodNotAllowed(["GET", "POST"])(res));
+  .get(...buildProtectedRoute(wrapHandler("list_sessions", listSessionsHandler)))
+  .post(...buildProtectedRoute(wrapHandler("create_session", createSessionHandler), limits.create))
+  .all(notAllowed(["GET", "POST"]));
 
 sessionsRouter
   .route("/deleted-sessions")
-  .get(listDeletedSessionsHandler)
-  .all((req, res) => methodNotAllowed(["GET"])(res));
+  .get(...buildProtectedRoute(wrapHandler("list_deleted_sessions", listDeletedSessionsHandler)))
+  .all(notAllowed(["GET"]));
 
 sessionsRouter
   .route("/sessions/:sessionId")
-  .get(getSessionHandler)
-  .patch(rateLimit(limits.update), updateSessionRegionHandler)
-  .delete(rateLimit(limits.delete), deleteSessionHandler)
-  .all((req, res) => methodNotAllowed(["GET", "PATCH", "DELETE"])(res));
+  .get(...buildProtectedRoute(wrapHandler("get_session", getSessionHandler)))
+  .patch(...buildProtectedRoute(wrapHandler("update_session_region", updateSessionRegionHandler), limits.update))
+  .delete(...buildProtectedRoute(wrapHandler("delete_session", deleteSessionHandler), limits.delete))
+  .all(notAllowed(["GET", "PATCH", "DELETE"]));
 
 sessionsRouter
   .route("/sessions/:sessionId/status")
-  .patch(rateLimit(limits.updateStatus), updateSessionStatusHandler)
-  .all((req, res) => methodNotAllowed(["PATCH"])(res));
+  .patch(...buildProtectedRoute(wrapHandler("update_session_status", updateSessionStatusHandler), limits.updateStatus))
+  .all(notAllowed(["PATCH"]));
 
 sessionsRouter
   .route("/sessions/:sessionId/complete")
-  .post(rateLimit(limits.complete), completeSessionHandler)
-  .all((req, res) => methodNotAllowed(["POST"])(res));
+  .post(...buildProtectedRoute(wrapHandler("complete_session", completeSessionHandler), limits.complete))
+  .all(notAllowed(["POST"]));
 
 sessionsRouter
   .route("/sessions/:sessionId/fail")
-  .post(rateLimit(limits.fail), failSessionHandler)
-  .all((req, res) => methodNotAllowed(["POST"])(res));
+  .post(...buildProtectedRoute(wrapHandler("fail_session", failSessionHandler), limits.fail))
+  .all(notAllowed(["POST"]));

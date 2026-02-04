@@ -5,13 +5,11 @@ import { logger } from "firebase-functions";
 import { sessionsRouter } from "./routes/sessions.routes";
 import { HttpError, sendError } from "./utils/http";
 import { getRequestId } from "./utils/requestId";
+import { getCorsOrigins } from "./utils/config";
 
 export const app = express();
 
-const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const allowedOrigins = getCorsOrigins();
 
 app.use(cors({
   origin: (origin, callback) => {

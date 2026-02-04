@@ -19,16 +19,22 @@ export const sendJson = <T>(res: Response, status: number, body: T): void => {
   res.status(status).json(body);
 };
 
+const mergeRequestId = (requestId: string | undefined, details?: unknown): unknown => {
+  if (!requestId) {
+    return details;
+  }
+  if (!details) {
+    return { requestId };
+  }
+  if (typeof details === "object" && !Array.isArray(details)) {
+    return { ...(details as Record<string, unknown>), requestId };
+  }
+  return { requestId, detail: details };
+};
+
 export const sendError = (res: Response, err: HttpError): void => {
   const requestId = getRequestId(res);
-  const details = (() => {
-    if (!requestId) return err.details;
-    if (!err.details) return { requestId };
-    if (typeof err.details === "object" && !Array.isArray(err.details)) {
-      return { ...(err.details as Record<string, unknown>), requestId };
-    }
-    return { requestId, detail: err.details };
-  })();
+  const details = mergeRequestId(requestId, err.details);
 
   const body: ApiErrorBody = {
     error: {

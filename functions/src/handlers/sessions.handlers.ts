@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { logger } from "firebase-functions";
 import {
   createSession,
   createSessionIdempotent,
@@ -12,8 +11,9 @@ import {
 } from "../services/sessions.service";
 import type { Session, SessionResponse } from "../types/session";
 import type { DeletedSession, DeletedSessionResponse } from "../types/deletedSession";
-import { HttpError, sendError, sendJson, toInternalError } from "../utils/http";
-import { getRequestId } from "../utils/requestId";
+import { serializeDeletedSessions, serializeSession, serializeSessions } from "../utils/serializers";
+import { HttpError, sendError, sendJson } from "../utils/http";
+import { safeHandler, withRequestLogging } from "../utils/handler";
 import {
   validateIdempotencyKey,
   validateOptionalRegion,
@@ -21,271 +21,139 @@ import {
   validateRegion,
   validateSessionId,
   validateStatus
-} from "../validation/sessions.validation";
+} from "../validation";
+import { requireValid } from "../utils/validation";
 
-const toResponse = (session: Session): SessionResponse => ({
-  sessionId: session.sessionId,
-  region: session.region,
-  status: session.status,
-  createdAt: session.createdAt.toDate().toISOString(),
-  updatedAt: session.updatedAt.toDate().toISOString()
-});
-
-const toResponses = (sessions: Session[]): SessionResponse[] =>
-  sessions.map((session) => toResponse(session));
-
-const toDeletedResponse = (session: DeletedSession): DeletedSessionResponse => ({
-  sessionId: session.sessionId,
-  region: session.region,
-  status: session.status,
-  createdAt: session.createdAt.toDate().toISOString(),
-  updatedAt: session.updatedAt.toDate().toISOString(),
-  deletedAt: session.deletedAt.toDate().toISOString(),
-  expiresAt: session.expiresAt.toDate().toISOString()
-});
-
+const toResponse = (session: Session): SessionResponse => serializeSession(session);
+const toResponses = (sessions: Session[]): SessionResponse[] => serializeSessions(sessions);
 const toDeletedResponses = (sessions: DeletedSession[]): DeletedSessionResponse[] =>
-  sessions.map((session) => toDeletedResponse(session));
+  serializeDeletedSessions(sessions);
 
-export const createSessionHandler = async (req: Request, res: Response): Promise<void> => {
-  const requestId = getRequestId(res);
-  const start = Date.now();
-  try {
-    const regionResult = validateRegion(req.body?.region);
-    if (!regionResult.ok) {
-      throw new HttpError(400, "invalid_argument", regionResult.message, regionResult.details);
-    }
+const createSessionHandlerBase = async (req: Request, res: Response): Promise<void> => {
+  const region = requireValid(validateRegion(req.body?.region), "region");
 
-    const idempotencyResult = validateIdempotencyKey(req.header("Idempotency-Key"));
-    if (!idempotencyResult.ok) {
-      throw new HttpError(400, "invalid_argument", idempotencyResult.message, idempotencyResult.details);
-    }
+    const idempotencyKey = requireValid(validateIdempotencyKey(req.header("Idempotency-Key")), "Idempotency-Key");
 
-    const session = idempotencyResult.value
-      ? await createSessionIdempotent(regionResult.value, idempotencyResult.value)
-      : await createSession(regionResult.value);
-    sendJson(res, 201, toResponse(session));
-    logger.info("create_session", { requestId, durationMs: Date.now() - start, sessionId: session.sessionId });
-  } catch (err: unknown) {
-    logger.error("create_session_failed", {
-      requestId,
-      durationMs: Date.now() - start,
-      error: err instanceof Error ? err.message : err
-    });
-    sendError(res, toInternalError(err));
-  }
+  const session = idempotencyKey
+    ? await createSessionIdempotent(region, idempotencyKey)
+    : await createSession(region);
+  sendJson(res, 201, toResponse(session));
 };
 
-export const listSessionsHandler = async (req: Request, res: Response): Promise<void> => {
-  const requestId = getRequestId(res);
-  const start = Date.now();
-  try {
-    const statusResult = validateOptionalStatus(req.query.status);
-    if (!statusResult.ok) {
-      throw new HttpError(400, "invalid_argument", statusResult.message, statusResult.details);
-    }
+export const createSessionHandler = safeHandler(
+  withRequestLogging("create_session", createSessionHandlerBase)
+);
 
-    const regionResult = validateOptionalRegion(req.query.region);
-    if (!regionResult.ok) {
-      throw new HttpError(400, "invalid_argument", regionResult.message, regionResult.details);
-    }
+const listSessionsHandlerBase = async (req: Request, res: Response): Promise<void> => {
+  const status = requireValid(validateOptionalStatus(req.query.status), "status");
+  const region = requireValid(validateOptionalRegion(req.query.region), "region");
 
     const sessions = await listSessions({
-      status: statusResult.value,
-      region: regionResult.value
+      status,
+      region
     });
 
-    sendJson(res, 200, toResponses(sessions));
-    logger.info("list_sessions", { requestId, durationMs: Date.now() - start, count: sessions.length });
-  } catch (err: unknown) {
-    logger.error("list_sessions_failed", {
-      requestId,
-      durationMs: Date.now() - start,
-      error: err instanceof Error ? err.message : err
-    });
-    sendError(res, toInternalError(err));
-  }
+  sendJson(res, 200, toResponses(sessions));
 };
 
-export const listDeletedSessionsHandler = async (req: Request, res: Response): Promise<void> => {
-  const requestId = getRequestId(res);
-  const start = Date.now();
-  try {
-    const sessions = await listDeletedSessions();
-    sendJson(res, 200, toDeletedResponses(sessions));
-    logger.info("list_deleted_sessions", { requestId, durationMs: Date.now() - start, count: sessions.length });
-  } catch (err: unknown) {
-    logger.error("list_deleted_sessions_failed", {
-      requestId,
-      durationMs: Date.now() - start,
-      error: err instanceof Error ? err.message : err
-    });
-    sendError(res, toInternalError(err));
-  }
+export const listSessionsHandler = safeHandler(
+  withRequestLogging("list_sessions", listSessionsHandlerBase)
+);
+
+const listDeletedSessionsHandlerBase = async (req: Request, res: Response): Promise<void> => {
+  const sessions = await listDeletedSessions();
+  sendJson(res, 200, toDeletedResponses(sessions));
 };
 
-export const getSessionHandler = async (req: Request, res: Response): Promise<void> => {
-  const requestId = getRequestId(res);
-  const start = Date.now();
-  try {
-    const idResult = validateSessionId(req.params.sessionId);
-    if (!idResult.ok) {
-      throw new HttpError(400, "invalid_argument", idResult.message, idResult.details);
-    }
+export const listDeletedSessionsHandler = safeHandler(
+  withRequestLogging("list_deleted_sessions", listDeletedSessionsHandlerBase)
+);
 
-    const session = await getSession(idResult.value);
+const getSessionHandlerBase = async (req: Request, res: Response): Promise<void> => {
+  const sessionId = requireValid(validateSessionId(req.params.sessionId), "sessionId");
+
+    const session = await getSession(sessionId);
     if (!session) {
       throw new HttpError(404, "not_found", "session not found");
     }
 
-    sendJson(res, 200, toResponse(session));
-    logger.info("get_session", { requestId, durationMs: Date.now() - start, sessionId: session.sessionId });
-  } catch (err: unknown) {
-    logger.error("get_session_failed", {
-      requestId,
-      durationMs: Date.now() - start,
-      error: err instanceof Error ? err.message : err
-    });
-    sendError(res, toInternalError(err));
-  }
+  sendJson(res, 200, toResponse(session));
 };
 
-export const updateSessionRegionHandler = async (req: Request, res: Response): Promise<void> => {
-  const requestId = getRequestId(res);
-  const start = Date.now();
-  try {
-    const idResult = validateSessionId(req.params.sessionId);
-    if (!idResult.ok) {
-      throw new HttpError(400, "invalid_argument", idResult.message, idResult.details);
-    }
+export const getSessionHandler = safeHandler(
+  withRequestLogging("get_session", getSessionHandlerBase)
+);
 
-    const regionResult = validateRegion(req.body?.region);
-    if (!regionResult.ok) {
-      throw new HttpError(400, "invalid_argument", regionResult.message, regionResult.details);
-    }
+const updateSessionRegionHandlerBase = async (req: Request, res: Response): Promise<void> => {
+  const sessionId = requireValid(validateSessionId(req.params.sessionId), "sessionId");
+  const region = requireValid(validateRegion(req.body?.region), "region");
 
-    const session = await updateSessionRegion(idResult.value, regionResult.value);
+    const session = await updateSessionRegion(sessionId, region);
     if (!session) {
       throw new HttpError(404, "not_found", "session not found");
     }
 
-    sendJson(res, 200, toResponse(session));
-    logger.info("update_session_region", { requestId, durationMs: Date.now() - start, sessionId: session.sessionId });
-  } catch (err: unknown) {
-    logger.error("update_session_region_failed", {
-      requestId,
-      durationMs: Date.now() - start,
-      error: err instanceof Error ? err.message : err
-    });
-    sendError(res, toInternalError(err));
-  }
+  sendJson(res, 200, toResponse(session));
 };
 
-export const updateSessionStatusHandler = async (req: Request, res: Response): Promise<void> => {
-  const requestId = getRequestId(res);
-  const start = Date.now();
-  try {
-    const idResult = validateSessionId(req.params.sessionId);
-    if (!idResult.ok) {
-      throw new HttpError(400, "invalid_argument", idResult.message, idResult.details);
-    }
+export const updateSessionRegionHandler = safeHandler(
+  withRequestLogging("update_session_region", updateSessionRegionHandlerBase)
+);
 
-    const statusResult = validateStatus(req.body?.status);
-    if (!statusResult.ok) {
-      throw new HttpError(400, "invalid_argument", statusResult.message, statusResult.details);
-    }
+const updateSessionStatusHandlerBase = async (req: Request, res: Response): Promise<void> => {
+  const sessionId = requireValid(validateSessionId(req.params.sessionId), "sessionId");
+  const status = requireValid(validateStatus(req.body?.status), "status");
 
-    const session = await updateSessionStatus(idResult.value, statusResult.value);
+    const session = await updateSessionStatus(sessionId, status);
     if (!session) {
       throw new HttpError(404, "not_found", "session not found");
     }
 
-    sendJson(res, 200, toResponse(session));
-    logger.info("update_session_status", { requestId, durationMs: Date.now() - start, sessionId: session.sessionId });
-  } catch (err: unknown) {
-    logger.error("update_session_status_failed", {
-      requestId,
-      durationMs: Date.now() - start,
-      error: err instanceof Error ? err.message : err
-    });
-    sendError(res, toInternalError(err));
-  }
+  sendJson(res, 200, toResponse(session));
 };
 
-export const completeSessionHandler = async (req: Request, res: Response): Promise<void> => {
-  const requestId = getRequestId(res);
-  const start = Date.now();
-  try {
-    const idResult = validateSessionId(req.params.sessionId);
-    if (!idResult.ok) {
-      throw new HttpError(400, "invalid_argument", idResult.message, idResult.details);
-    }
+export const updateSessionStatusHandler = safeHandler(
+  withRequestLogging("update_session_status", updateSessionStatusHandlerBase)
+);
 
-    const session = await updateSessionStatus(idResult.value, "completed");
+const completeSessionHandlerBase = async (req: Request, res: Response): Promise<void> => {
+  const sessionId = requireValid(validateSessionId(req.params.sessionId), "sessionId");
+  const session = await updateSessionStatus(sessionId, "completed");
     if (!session) {
       throw new HttpError(404, "not_found", "session not found");
     }
 
-    sendJson(res, 200, toResponse(session));
-    logger.info("complete_session", { requestId, durationMs: Date.now() - start, sessionId: session.sessionId });
-  } catch (err: unknown) {
-    logger.error("complete_session_failed", {
-      requestId,
-      durationMs: Date.now() - start,
-      error: err instanceof Error ? err.message : err
-    });
-    sendError(res, toInternalError(err));
-  }
+  sendJson(res, 200, toResponse(session));
 };
 
-export const failSessionHandler = async (req: Request, res: Response): Promise<void> => {
-  const requestId = getRequestId(res);
-  const start = Date.now();
-  try {
-    const idResult = validateSessionId(req.params.sessionId);
-    if (!idResult.ok) {
-      throw new HttpError(400, "invalid_argument", idResult.message, idResult.details);
-    }
+export const completeSessionHandler = safeHandler(
+  withRequestLogging("complete_session", completeSessionHandlerBase)
+);
 
-    const session = await updateSessionStatus(idResult.value, "failed");
+const failSessionHandlerBase = async (req: Request, res: Response): Promise<void> => {
+  const sessionId = requireValid(validateSessionId(req.params.sessionId), "sessionId");
+  const session = await updateSessionStatus(sessionId, "failed");
     if (!session) {
       throw new HttpError(404, "not_found", "session not found");
     }
 
-    sendJson(res, 200, toResponse(session));
-    logger.info("fail_session", { requestId, durationMs: Date.now() - start, sessionId: session.sessionId });
-  } catch (err: unknown) {
-    logger.error("fail_session_failed", {
-      requestId,
-      durationMs: Date.now() - start,
-      error: err instanceof Error ? err.message : err
-    });
-    sendError(res, toInternalError(err));
-  }
+  sendJson(res, 200, toResponse(session));
 };
 
-export const deleteSessionHandler = async (req: Request, res: Response): Promise<void> => {
-  const requestId = getRequestId(res);
-  const start = Date.now();
-  try {
-    const idResult = validateSessionId(req.params.sessionId);
-    if (!idResult.ok) {
-      throw new HttpError(400, "invalid_argument", idResult.message, idResult.details);
-    }
+export const failSessionHandler = safeHandler(
+  withRequestLogging("fail_session", failSessionHandlerBase)
+);
 
-    const deleted = await deleteSession(idResult.value);
+const deleteSessionHandlerBase = async (req: Request, res: Response): Promise<void> => {
+  const sessionId = requireValid(validateSessionId(req.params.sessionId), "sessionId");
+  const deleted = await deleteSession(sessionId);
     if (!deleted) {
       throw new HttpError(404, "not_found", "session not found");
     }
 
-    res.status(204).send();
-    logger.info("delete_session", { requestId, durationMs: Date.now() - start, sessionId: idResult.value });
-  } catch (err: unknown) {
-    logger.error("delete_session_failed", {
-      requestId,
-      durationMs: Date.now() - start,
-      error: err instanceof Error ? err.message : err
-    });
-    sendError(res, toInternalError(err));
-  }
+  res.status(204).send();
 };
+
+export const deleteSessionHandler = safeHandler(
+  withRequestLogging("delete_session", deleteSessionHandlerBase)
+);

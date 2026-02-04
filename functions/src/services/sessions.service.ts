@@ -3,7 +3,8 @@ import crypto from "crypto";
 import { deletedSessionsCol, idempotencyCol, sessionsCol } from "../db/firestore";
 import { type Session, type SessionStatus } from "../types/session";
 import type { DeletedSession } from "../types/deletedSession";
-import { isSessionStatus } from "../validation/sessions.validation";
+import { isSessionStatus } from "../validation";
+import { getDeletedTtlMs, getIdempotencyTtlMs } from "../utils/config";
 
 const mapDocToSession = (data: FirebaseFirestore.DocumentData, sessionId: string): Session => {
   const region = data.region;
@@ -32,35 +33,49 @@ const mapDocToSession = (data: FirebaseFirestore.DocumentData, sessionId: string
   };
 };
 
-export const createSession = async (region: string): Promise<Session> => {
-  const docRef = sessionsCol.doc();
-  const sessionId = docRef.id;
+const buildSessionData = (region: string) => ({
+  region,
+  status: "pending" as const,
+  createdAt: FieldValue.serverTimestamp(),
+  updatedAt: FieldValue.serverTimestamp()
+});
 
-  await docRef.set({
-    sessionId,
-    region,
-    status: "pending",
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp()
-  });
-
+const readSessionDoc = async (docRef: FirebaseFirestore.DocumentReference): Promise<Session> => {
   const snap = await docRef.get();
   const data = snap.data();
-
   if (!data) {
-    throw new Error("Failed to read created session");
+    throw new Error("Failed to read session");
   }
+  return mapDocToSession(data, docRef.id);
+};
 
-  return mapDocToSession(data, sessionId);
+const readSessionDocIfExists = async (
+  docRef: FirebaseFirestore.DocumentReference
+): Promise<Session | null> => {
+  const snap = await docRef.get();
+  if (!snap.exists) {
+    return null;
+  }
+  const data = snap.data();
+  if (!data) {
+    return null;
+  }
+  return mapDocToSession(data, docRef.id);
+};
+
+export const createSession = async (region: string): Promise<Session> => {
+  const docRef = sessionsCol.doc();
+
+  await docRef.set({
+    sessionId: docRef.id,
+    ...buildSessionData(region)
+  });
+
+  return readSessionDoc(docRef);
 };
 
 const idempotencyDocId = (key: string): string => {
   return crypto.createHash("sha256").update(key).digest("hex");
-};
-
-const idempotencyTtlMs = (): number => {
-  const hours = Number.parseInt(process.env.IDEMPOTENCY_TTL_HOURS ?? "24", 10);
-  return Number.isFinite(hours) && hours > 0 ? hours * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
 };
 
 export const createSessionIdempotent = async (
@@ -69,7 +84,7 @@ export const createSessionIdempotent = async (
 ): Promise<Session> => {
   const keyId = idempotencyDocId(key);
   const idempotencyRef = idempotencyCol.doc(keyId);
-  const ttlMs = idempotencyTtlMs();
+  const ttlMs = getIdempotencyTtlMs();
   let sessionId: string | null = null;
 
   await sessionsCol.firestore.runTransaction(async (tx) => {
@@ -88,10 +103,7 @@ export const createSessionIdempotent = async (
 
     tx.set(docRef, {
       sessionId,
-      region,
-      status: "pending",
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp()
+      ...buildSessionData(region)
     });
 
     tx.set(idempotencyRef, {
@@ -105,27 +117,11 @@ export const createSessionIdempotent = async (
     throw new Error("Failed to resolve idempotent session");
   }
 
-  const snap = await sessionsCol.doc(sessionId).get();
-  const data = snap.data();
-  if (!data) {
-    throw new Error("Failed to read idempotent session");
-  }
-
-  return mapDocToSession(data, sessionId);
+  return readSessionDoc(sessionsCol.doc(sessionId));
 };
 
 export const getSession = async (sessionId: string): Promise<Session | null> => {
-  const snap = await sessionsCol.doc(sessionId).get();
-  if (!snap.exists) {
-    return null;
-  }
-
-  const data = snap.data();
-  if (!data) {
-    return null;
-  }
-
-  return mapDocToSession(data, sessionId);
+  return readSessionDocIfExists(sessionsCol.doc(sessionId));
 };
 
 export const updateSessionStatus = async (
@@ -133,25 +129,15 @@ export const updateSessionStatus = async (
   status: SessionStatus
 ): Promise<Session | null> => {
   const docRef = sessionsCol.doc(sessionId);
-  const snap = await docRef.get();
-
-  if (!snap.exists) {
-    return null;
-  }
+  const exists = await readSessionDocIfExists(docRef);
+  if (!exists) return null;
 
   await docRef.update({
     status,
     updatedAt: FieldValue.serverTimestamp()
   });
 
-  const updatedSnap = await docRef.get();
-  const data = updatedSnap.data();
-
-  if (!data) {
-    throw new Error("Failed to read updated session");
-  }
-
-  return mapDocToSession(data, sessionId);
+  return readSessionDoc(docRef);
 };
 
 export const updateSessionRegion = async (
@@ -159,42 +145,25 @@ export const updateSessionRegion = async (
   region: string
 ): Promise<Session | null> => {
   const docRef = sessionsCol.doc(sessionId);
-  const snap = await docRef.get();
-
-  if (!snap.exists) {
-    return null;
-  }
+  const exists = await readSessionDocIfExists(docRef);
+  if (!exists) return null;
 
   await docRef.update({
     region,
     updatedAt: FieldValue.serverTimestamp()
   });
 
-  const updatedSnap = await docRef.get();
-  const data = updatedSnap.data();
-
-  if (!data) {
-    throw new Error("Failed to read updated session");
-  }
-
-  return mapDocToSession(data, sessionId);
+  return readSessionDoc(docRef);
 };
 
 export const deleteSession = async (sessionId: string): Promise<boolean> => {
   const docRef = sessionsCol.doc(sessionId);
   const snap = await docRef.get();
-
-  if (!snap.exists) {
-    return false;
-  }
-
+  if (!snap.exists) return false;
   const data = snap.data();
-  if (!data) {
-    return false;
-  }
+  if (!data) return false;
 
-  const ttlHours = Number.parseInt(process.env.DELETED_TTL_HOURS ?? "24", 10);
-  const ttlMs = Number.isFinite(ttlHours) && ttlHours > 0 ? ttlHours * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  const ttlMs = getDeletedTtlMs();
 
   await sessionsCol.firestore.runTransaction(async (tx) => {
     tx.set(deletedSessionsCol.doc(sessionId), {

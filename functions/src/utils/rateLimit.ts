@@ -14,32 +14,40 @@ interface Bucket {
 
 const buckets = new Map<string, Bucket>();
 
-const getKey = (req: AuthenticatedRequest): string => {
+const buildKey = (req: AuthenticatedRequest): string => {
   const ip = req.ip || "unknown";
   const userId = req.userId;
   return userId ? `${userId}:${ip}` : ip;
 };
 
+const initBucket = (now: number, windowMs: number): Bucket => ({
+  count: 1,
+  resetAt: now + windowMs
+});
+
+const isExpired = (bucket: Bucket, now: number): boolean => bucket.resetAt <= now;
+
 export const rateLimit = (options: RateLimitOptions) => {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const key = getKey(req as AuthenticatedRequest);
+    const key = buildKey(req as AuthenticatedRequest);
     const now = Date.now();
-
     const existing = buckets.get(key);
-    if (!existing || existing.resetAt <= now) {
-      buckets.set(key, { count: 1, resetAt: now + options.windowMs });
+
+    if (!existing || isExpired(existing, now)) {
+      buckets.set(key, initBucket(now, options.windowMs));
       next();
       return;
     }
 
-    existing.count += 1;
-    buckets.set(key, existing);
+    const nextCount = existing.count + 1;
+    const updated: Bucket = { ...existing, count: nextCount };
+    buckets.set(key, updated);
 
-    if (existing.count > options.max) {
+    if (nextCount > options.max) {
       sendError(
         res,
         new HttpError(429, "resource_exhausted", "Too many requests", {
-          retryAfterMs: Math.max(existing.resetAt - now, 0)
+          retryAfterMs: Math.max(updated.resetAt - now, 0)
         })
       );
       return;

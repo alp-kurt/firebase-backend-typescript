@@ -1,4 +1,4 @@
-import { validateRegion, validateSessionId, validateStatus } from "../src/validation/sessions.validation";
+import { validateRegion, validateSessionId, validateStatus } from "../src/validation";
 
 describe("validation", () => {
   test("rejects empty region", () => {
