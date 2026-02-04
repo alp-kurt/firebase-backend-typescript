@@ -8,3 +8,4 @@ if (getApps().length === 0) {
 export const db = getFirestore();
 export const sessionsCol = db.collection("sessions");
 export const idempotencyCol = db.collection("idempotencyKeys");
+export const deletedSessionsCol = db.collection("deletedSessions");

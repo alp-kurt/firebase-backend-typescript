@@ -4,11 +4,13 @@ import {
   createSessionIdempotent,
   deleteSession,
   getSession,
+  listDeletedSessions,
   listSessions,
   updateSessionRegion,
   updateSessionStatus
 } from "../services/sessions.service";
 import type { Session, SessionResponse } from "../types/session";
+import type { DeletedSession, DeletedSessionResponse } from "../types/deletedSession";
 import { HttpError, sendError, sendJson, toInternalError } from "../utils/http";
 import {
   validateIdempotencyKey,
@@ -29,6 +31,19 @@ const toResponse = (session: Session): SessionResponse => ({
 
 const toResponses = (sessions: Session[]): SessionResponse[] =>
   sessions.map((session) => toResponse(session));
+
+const toDeletedResponse = (session: DeletedSession): DeletedSessionResponse => ({
+  sessionId: session.sessionId,
+  region: session.region,
+  status: session.status,
+  createdAt: session.createdAt.toDate().toISOString(),
+  updatedAt: session.updatedAt.toDate().toISOString(),
+  deletedAt: session.deletedAt.toDate().toISOString(),
+  expiresAt: session.expiresAt.toDate().toISOString()
+});
+
+const toDeletedResponses = (sessions: DeletedSession[]): DeletedSessionResponse[] =>
+  sessions.map((session) => toDeletedResponse(session));
 
 export const createSessionHandler = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -69,6 +84,15 @@ export const listSessionsHandler = async (req: Request, res: Response): Promise<
     });
 
     sendJson(res, 200, toResponses(sessions));
+  } catch (err: unknown) {
+    sendError(res, toInternalError(err));
+  }
+};
+
+export const listDeletedSessionsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const sessions = await listDeletedSessions();
+    sendJson(res, 200, toDeletedResponses(sessions));
   } catch (err: unknown) {
     sendError(res, toInternalError(err));
   }

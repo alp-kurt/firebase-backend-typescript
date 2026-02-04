@@ -9,6 +9,11 @@ export interface Session {
   updatedAt: string;
 }
 
+export interface DeletedSession extends Session {
+  deletedAt: string;
+  expiresAt: string;
+}
+
 export interface ApiErrorBody {
   error: {
     code: string;
@@ -103,4 +108,11 @@ export const deleteSession = async (sessionId: string, token: string): Promise<v
     headers: authHeaders(token)
   });
   await handle(res);
+};
+
+export const listDeletedSessions = async (token: string): Promise<DeletedSession[]> => {
+  const res = await fetch(`${API_BASE}/deleted-sessions`, {
+    headers: authHeaders(token)
+  });
+  return handle<DeletedSession[]>(res);
 };

@@ -3,7 +3,9 @@ import { useAuth } from "../auth";
 import {
   Session,
   SessionStatus,
+  DeletedSession,
   createSession,
+  listDeletedSessions,
   deleteSession,
   listSessions,
   updateSessionStatus
@@ -19,6 +21,7 @@ import { REGIONS } from "../utils/regions";
 import { withBusy } from "../utils/requestGuard";
 import { SESSION_STATUSES } from "../utils/statuses";
 import { parseStatus } from "../utils/session";
+import DeletedSessionsPanel from "../components/DeletedSessionsPanel";
 
 const statuses: SessionStatus[] = [...SESSION_STATUSES];
 
@@ -27,6 +30,7 @@ const emptyFilters = { status: "", region: "" } as const;
 function SessionsPage() {
   const { token, signOut, userEmail } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [deletedSessions, setDeletedSessions] = useState<DeletedSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [region, setRegion] = useState(REGIONS[0]);
@@ -39,6 +43,7 @@ function SessionsPage() {
   const [confirmCreateOpen, setConfirmCreateOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"live" | "deleted">("live");
 
   const activeFilters = useMemo(() => ({
     status: parseStatus(filters.status) ?? undefined,
@@ -72,8 +77,12 @@ function SessionsPage() {
           setSessions([]);
           return;
         }
-        const data = await listSessions(activeFilters, authToken);
+        const [data, deleted] = await Promise.all([
+          listSessions(activeFilters, authToken),
+          listDeletedSessions(authToken)
+        ]);
         setSessions(data);
+        setDeletedSessions(deleted);
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -185,13 +194,33 @@ function SessionsPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-6 pb-16">
-        <SessionsTable
-          sessions={sessions}
-          loading={loading}
-          onRequestStatusChange={onRequestStatusChange}
-          onRequestDelete={onRequestDelete}
-          busyKeys={busy}
-        />
+        <div className="mb-4 flex items-center gap-2">
+          <button
+            className={activeTab === "live" ? "btn-primary" : "btn-ghost"}
+            onClick={() => setActiveTab("live")}
+          >
+            Live Sessions
+          </button>
+          <button
+            className={activeTab === "deleted" ? "btn-primary" : "btn-ghost"}
+            onClick={() => setActiveTab("deleted")}
+          >
+            Recently Deleted
+          </button>
+        </div>
+
+        {activeTab === "live" ? (
+          <SessionsTable
+            sessions={sessions}
+            loading={loading}
+            onRequestStatusChange={onRequestStatusChange}
+            onRequestDelete={onRequestDelete}
+            busyKeys={busy}
+          />
+        ) : (
+          <DeletedSessionsPanel sessions={deletedSessions} />
+        )}
+
         <ConfirmModal
           open={confirmCreateOpen}
           title="Create session?"

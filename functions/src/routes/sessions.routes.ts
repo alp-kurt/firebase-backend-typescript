@@ -4,6 +4,7 @@ import {
   createSessionHandler,
   deleteSessionHandler,
   getSessionHandler,
+  listDeletedSessionsHandler,
   listSessionsHandler,
   updateSessionRegionHandler,
   updateSessionStatusHandler,
@@ -25,6 +26,11 @@ sessionsRouter
   .get(listSessionsHandler)
   .post(rateLimit(limits.create), createSessionHandler)
   .all((req, res) => methodNotAllowed(["GET", "POST"])(res));
+
+sessionsRouter
+  .route("/deleted-sessions")
+  .get(listDeletedSessionsHandler)
+  .all((req, res) => methodNotAllowed(["GET"])(res));
 
 sessionsRouter
   .route("/sessions/:sessionId")

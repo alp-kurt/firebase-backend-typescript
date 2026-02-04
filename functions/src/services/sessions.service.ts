@@ -1,7 +1,8 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import crypto from "crypto";
-import { idempotencyCol, sessionsCol } from "../db/firestore";
+import { deletedSessionsCol, idempotencyCol, sessionsCol } from "../db/firestore";
 import { type Session, type SessionStatus } from "../types/session";
+import type { DeletedSession } from "../types/deletedSession";
 import { isSessionStatus } from "../validation/sessions.validation";
 
 const mapDocToSession = (data: FirebaseFirestore.DocumentData, sessionId: string): Session => {
@@ -187,8 +188,67 @@ export const deleteSession = async (sessionId: string): Promise<boolean> => {
     return false;
   }
 
-  await docRef.delete();
+  const data = snap.data();
+  if (!data) {
+    return false;
+  }
+
+  const ttlHours = Number.parseInt(process.env.DELETED_TTL_HOURS ?? "24", 10);
+  const ttlMs = Number.isFinite(ttlHours) && ttlHours > 0 ? ttlHours * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+
+  await sessionsCol.firestore.runTransaction(async (tx) => {
+    tx.set(deletedSessionsCol.doc(sessionId), {
+      ...data,
+      deletedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(Date.now() + ttlMs)
+    });
+    tx.delete(docRef);
+  });
   return true;
+};
+
+const mapDeletedDocToSession = (
+  data: FirebaseFirestore.DocumentData,
+  sessionId: string
+): DeletedSession => {
+  const region = data.region;
+  const status = data.status;
+  const createdAt = data.createdAt as Timestamp;
+  const updatedAt = data.updatedAt as Timestamp;
+  const deletedAt = data.deletedAt as Timestamp;
+  const expiresAt = data.expiresAt as Timestamp;
+
+  if (typeof region !== "string" || typeof status !== "string") {
+    throw new Error("Invalid deleted session data in Firestore");
+  }
+
+  if (
+    !(createdAt instanceof Timestamp) ||
+    !(updatedAt instanceof Timestamp) ||
+    !(deletedAt instanceof Timestamp) ||
+    !(expiresAt instanceof Timestamp)
+  ) {
+    throw new Error("Invalid deleted session timestamps in Firestore");
+  }
+
+  if (!isSessionStatus(status)) {
+    throw new Error("Invalid deleted session status in Firestore");
+  }
+
+  return {
+    sessionId,
+    region,
+    status,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    expiresAt
+  };
+};
+
+export const listDeletedSessions = async (): Promise<DeletedSession[]> => {
+  const snap = await deletedSessionsCol.orderBy("deletedAt", "desc").get();
+  return snap.docs.map((doc) => mapDeletedDocToSession(doc.data(), doc.id));
 };
 
 export const listSessions = async (filters: {
