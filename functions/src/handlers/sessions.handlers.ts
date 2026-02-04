@@ -12,7 +12,7 @@ import {
 import type { Session, SessionResponse } from "../types/session";
 import type { DeletedSession, DeletedSessionResponse } from "../types/deletedSession";
 import { serializeDeletedSessions, serializeSession, serializeSessions } from "../utils/serializers";
-import { HttpError, sendError, sendJson } from "../utils/http";
+import { HttpError, sendJson } from "../utils/http";
 import { safeHandler, withRequestLogging } from "../utils/handler";
 import {
   validateIdempotencyKey,

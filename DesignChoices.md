@@ -39,3 +39,16 @@ Both backend and frontend use explicit type guards for status parsing, and the f
 
 ## Rate Limiting
 I used a lightweight in‑memory limiter for simplicity. Trade‑off: limits are per instance. For stronger global limits, a Redis‑backed limiter would be the next step.
+
+## Linting & CI/CD
+I tightened lint rules for both functions and frontend, added type‑aware linting, and introduced predeploy checks to run lint/build (and tests for functions). I also added Release Please for automated versioning/changelogs and a deploy workflow that publishes functions + hosting on version tags.
+
+Edge cases handled:
+- Lint blocks unused variables and unsafe patterns before deploy.
+- Predeploy checks fail fast on build/test errors.
+
+Trade‑offs:
+- TypeScript linting depends on a supported TS version, so I pinned functions to TS 5.5.x to avoid parser warnings.
+
+## Frontend Validation & Errors
+I added lightweight client‑side validation for login fields and create‑session region selection. Error handling now safely parses non‑JSON responses and surfaces API error codes alongside messages to improve debugging.

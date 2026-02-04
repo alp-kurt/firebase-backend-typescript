@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import crypto from "crypto";
 import { logger } from "firebase-functions";
-import { sessionsRouter } from "./routes/sessions.routes";
+import { v1Router } from "./routes/v1";
 import { HttpError, sendError } from "./utils/http";
 import { getRequestId } from "./utils/requestId";
 import { getCorsOrigins } from "./utils/config";
@@ -48,9 +48,10 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json());
-app.use("/api", sessionsRouter);
+app.use("/api/v1", v1Router);
+app.use("/api", v1Router);
 
-app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof SyntaxError) {
     logger.warn("invalid_json_body", { requestId: res.locals.requestId });
     sendError(res, new HttpError(400, "invalid_argument", "Invalid JSON body"));

@@ -42,6 +42,7 @@ const mockGetSession = getSession as jest.MockedFunction<typeof getSession>;
 const mockUpdateSessionStatus = updateSessionStatus as jest.MockedFunction<typeof updateSessionStatus>;
 const mockListSessions = listSessions as jest.MockedFunction<typeof listSessions>;
 const mockUpdateSessionRegion = updateSessionRegion as jest.MockedFunction<typeof updateSessionRegion>;
+type CreateSessionIdempotentFn = (region: string, idempotencyKey: string) => Promise<Session>;
 const mockDeleteSession = deleteSession as jest.MockedFunction<typeof deleteSession>;
 
 const makeSession = (overrides?: Partial<Session>): Session => ({
@@ -71,11 +72,11 @@ describe("session handlers", () => {
     verifyIdTokenMock.mockResolvedValue({ uid: "admin-user" });
   });
 
-  test("POST /api/sessions returns 201", async () => {
+  test("POST /api/v1/sessions returns 201", async () => {
     mockCreateSession.mockResolvedValue(makeSession());
 
     const res = await request(app)
-      .post("/api/sessions")
+      .post("/api/v1/sessions")
       .set("Authorization", authHeader())
       .send({ region: "eu-central" });
 
@@ -84,9 +85,9 @@ describe("session handlers", () => {
     expect(res.body.status).toBe("pending");
   });
 
-  test("POST /api/sessions returns 400 for invalid body", async () => {
+  test("POST /api/v1/sessions returns 400 for invalid body", async () => {
     const res = await request(app)
-      .post("/api/sessions")
+      .post("/api/v1/sessions")
       .set("Authorization", authHeader())
       .send({ region: "" });
 
@@ -95,20 +96,20 @@ describe("session handlers", () => {
     expect(res.body.error.code).toBe("invalid_argument");
   });
 
-  test("GET /api/sessions/:id returns 404 when missing", async () => {
+  test("GET /api/v1/sessions/:id returns 404 when missing", async () => {
     mockGetSession.mockResolvedValue(null);
 
     const res = await request(app)
-      .get("/api/sessions/missing")
+      .get("/api/v1/sessions/missing")
       .set("Authorization", authHeader());
 
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe("not_found");
   });
 
-  test("PATCH /api/sessions/:id/status returns 400 for invalid status", async () => {
+  test("PATCH /api/v1/sessions/:id/status returns 400 for invalid status", async () => {
     const res = await request(app)
-      .patch("/api/sessions/abc123/status")
+      .patch("/api/v1/sessions/abc123/status")
       .set("Authorization", authHeader())
       .send({ status: "bad" });
 
@@ -116,13 +117,13 @@ describe("session handlers", () => {
     expect(res.body.error.code).toBe("invalid_argument");
   });
 
-  test("PATCH /api/sessions/:id/status returns 200", async () => {
+  test("PATCH /api/v1/sessions/:id/status returns 200", async () => {
     mockUpdateSessionStatus.mockResolvedValue(
       makeSession({ status: "active" })
     );
 
     const res = await request(app)
-      .patch("/api/sessions/abc123/status")
+      .patch("/api/v1/sessions/abc123/status")
       .set("Authorization", authHeader())
       .send({ status: "active" });
 
@@ -130,13 +131,13 @@ describe("session handlers", () => {
     expect(res.body.status).toBe("active");
   });
 
-  test("GET /api/sessions lists sessions", async () => {
+  test("GET /api/v1/sessions lists sessions", async () => {
     const session = makeSession({ sessionId: "s1" });
     const session2 = makeSession({ sessionId: "s2", status: "active" });
     mockListSessions.mockResolvedValue([session, session2]);
 
     const res = await request(app)
-      .get("/api/sessions")
+      .get("/api/v1/sessions")
       .set("Authorization", authHeader())
       .query({ status: "active", region: "eu-central" });
 
@@ -145,11 +146,11 @@ describe("session handlers", () => {
     expect(res.body.length).toBe(2);
   });
 
-  test("PATCH /api/sessions/:id updates region", async () => {
+  test("PATCH /api/v1/sessions/:id updates region", async () => {
     mockUpdateSessionRegion.mockResolvedValue(makeSession({ region: "us-east" }));
 
     const res = await request(app)
-      .patch("/api/sessions/abc123")
+      .patch("/api/v1/sessions/abc123")
       .set("Authorization", authHeader())
       .send({ region: "us-east" });
 
@@ -157,37 +158,37 @@ describe("session handlers", () => {
     expect(res.body.region).toBe("us-east");
   });
 
-  test("POST /api/sessions/:id/complete sets completed", async () => {
+  test("POST /api/v1/sessions/:id/complete sets completed", async () => {
     mockUpdateSessionStatus.mockResolvedValue(
       makeSession({ status: "completed" })
     );
 
     const res = await request(app)
-      .post("/api/sessions/abc123/complete")
+      .post("/api/v1/sessions/abc123/complete")
       .set("Authorization", authHeader());
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("completed");
   });
 
-  test("POST /api/sessions/:id/fail sets failed", async () => {
+  test("POST /api/v1/sessions/:id/fail sets failed", async () => {
     mockUpdateSessionStatus.mockResolvedValue(
       makeSession({ status: "failed" })
     );
 
     const res = await request(app)
-      .post("/api/sessions/abc123/fail")
+      .post("/api/v1/sessions/abc123/fail")
       .set("Authorization", authHeader());
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("failed");
   });
 
-  test("DELETE /api/sessions/:id returns 204", async () => {
+  test("DELETE /api/v1/sessions/:id returns 204", async () => {
     mockDeleteSession.mockResolvedValue(true);
 
     const res = await request(app)
-      .delete("/api/sessions/abc123")
+      .delete("/api/v1/sessions/abc123")
       .set("Authorization", authHeader());
 
     expect(res.status).toBe(204);
@@ -195,7 +196,7 @@ describe("session handlers", () => {
 
   test("requests without auth are rejected", async () => {
     const res = await request(app)
-      .post("/api/sessions")
+      .post("/api/v1/sessions")
       .send({ region: "eu-central" });
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe("unauthenticated");
@@ -205,7 +206,7 @@ describe("session handlers", () => {
     verifyIdTokenMock.mockRejectedValue(new Error("bad token"));
 
     const res = await request(app)
-      .post("/api/sessions")
+      .post("/api/v1/sessions")
       .send({ region: "eu-central" })
       .set("Authorization", "Bearer invalid");
 
@@ -215,7 +216,7 @@ describe("session handlers", () => {
 
   test("returns 405 for unsupported method", async () => {
     const res = await request(app)
-      .put("/api/sessions")
+      .put("/api/v1/sessions")
       .set("Authorization", authHeader());
 
     expect(res.status).toBe(405);
@@ -225,7 +226,7 @@ describe("session handlers", () => {
 
   test("returns 400 for invalid JSON body", async () => {
     const res = await request(app)
-      .post("/api/sessions")
+      .post("/api/v1/sessions")
       .set("Authorization", authHeader())
       .set("Content-Type", "application/json")
       .send("{\"region\":");
@@ -236,7 +237,7 @@ describe("session handlers", () => {
 
   test("echoes x-request-id header", async () => {
     const res = await request(app)
-      .get("/api/sessions")
+      .get("/api/v1/sessions")
       .set("Authorization", authHeader())
       .set("x-request-id", "req-test-123");
 
@@ -249,7 +250,7 @@ describe("session handlers", () => {
     };
 
     await request(app)
-      .get("/api/sessions")
+      .get("/api/v1/sessions")
       .set("Authorization", "Bearer secret-token")
       .set("x-request-id", "req-safe-1");
 
@@ -267,17 +268,17 @@ describe("session handlers", () => {
   test("idempotency key returns same session", async () => {
     const session = makeSession({ sessionId: "idem-1" });
     const createSessionIdempotent = jest.requireMock("../src/services/sessions.service")
-      .createSessionIdempotent as jest.MockedFunction<typeof import("../src/services/sessions.service").createSessionIdempotent>;
+      .createSessionIdempotent as jest.MockedFunction<CreateSessionIdempotentFn>;
     createSessionIdempotent.mockResolvedValue(session);
 
     const first = await request(app)
-      .post("/api/sessions")
+      .post("/api/v1/sessions")
       .set("Authorization", authHeader())
       .set("Idempotency-Key", "abc-123")
       .send({ region: "eu-central" });
 
     const second = await request(app)
-      .post("/api/sessions")
+      .post("/api/v1/sessions")
       .set("Authorization", authHeader())
       .set("Idempotency-Key", "abc-123")
       .send({ region: "eu-central" });

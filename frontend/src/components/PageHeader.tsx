@@ -3,12 +3,11 @@ import React from "react";
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
-  userEmail?: string | null;
   onRefresh: () => void;
   onSignOut: () => void;
 }
 
-function PageHeader({ title, subtitle, userEmail, onRefresh, onSignOut }: PageHeaderProps) {
+function PageHeader({ title, subtitle, onRefresh, onSignOut }: PageHeaderProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div>

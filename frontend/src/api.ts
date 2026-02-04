@@ -22,17 +22,63 @@ export interface ApiErrorBody {
   };
 }
 
-const API_BASE = "https://europe-west1-backend-dev-test-c4ec0.cloudfunctions.net/api/api";
+export class ApiError extends Error {
+  readonly code: string;
+  readonly details?: unknown;
+
+  constructor(code: string, message: string, details?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.details = details;
+  }
+}
+
+export const toErrorMessage = (err: unknown): string => {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return "Unexpected error occurred.";
+};
+
+const API_BASE = "https://europe-west1-backend-dev-test-c4ec0.cloudfunctions.net/api/api/v1";
+
+const safeParseJson = async (res: Response): Promise<unknown | null> => {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+};
+
+const extractErrorMessage = (payload: unknown, status: number): { code: string; message: string; details?: unknown } => {
+  if (payload && typeof payload === "object") {
+    const maybeError = payload as Partial<ApiErrorBody>;
+    if (maybeError.error?.message) {
+      return {
+        code: maybeError.error.code ?? "unknown",
+        message: maybeError.error.message,
+        details: maybeError.error.details
+      };
+    }
+  }
+  return { code: "http_error", message: `Request failed with status ${status}.` };
+};
 
 const handle = async <T>(res: Response): Promise<T> => {
   if (!res.ok) {
-    const err = (await res.json()) as ApiErrorBody;
-    throw new Error(err.error.message);
+    const payload = await safeParseJson(res);
+    const extracted = extractErrorMessage(payload, res.status);
+    throw new ApiError(extracted.code, extracted.message, extracted.details);
   }
   if (res.status === 204) {
     return {} as T;
   }
-  return (await res.json()) as T;
+  const payload = await safeParseJson(res);
+  if (payload === null) {
+    throw new Error("Server returned an invalid response.");
+  }
+  return payload as T;
 };
 
 const authHeaders = (token?: string): HeadersInit =>

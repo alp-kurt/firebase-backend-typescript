@@ -1,4 +1,5 @@
-import { SESSION_STATUSES, SessionStatus } from "../types/session";
+import { SESSION_STATUSES } from "../types/session";
+import type { SessionStatus } from "../types/session";
 
 export type ValidationResult<T> =
   | { ok: true; value: T }

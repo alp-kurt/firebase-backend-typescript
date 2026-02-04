@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth";
 import {
   Session,
@@ -8,7 +8,8 @@ import {
   listDeletedSessions,
   deleteSession,
   listSessions,
-  updateSessionStatus
+  updateSessionStatus,
+  toErrorMessage
 } from "../api";
 import ControlsPanel from "../components/ControlsPanel";
 import ConfirmModal from "../components/ConfirmModal";
@@ -25,15 +26,15 @@ import DeletedSessionsPanel from "../components/DeletedSessionsPanel";
 
 const statuses: SessionStatus[] = [...SESSION_STATUSES];
 
-const emptyFilters = { status: "", region: "" } as const;
+const emptyFilters = { status: "", region: "" };
 
 function SessionsPage() {
   const { token, signOut, userEmail } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [deletedSessions, setDeletedSessions] = useState<DeletedSession[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [region, setRegion] = useState(REGIONS[0]);
+  const [error, setError] = useState<{ message: string; code?: string } | null>(null);
+  const [region, setRegion] = useState<string>(REGIONS[0]);
   const [filters, setFilters] = useState({ ...emptyFilters });
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [statusTargetId, setStatusTargetId] = useState<string | null>(null);
@@ -59,15 +60,15 @@ function SessionsPage() {
     return { total, pending, active, completed, failed };
   }, [sessions]);
 
-  const requireToken = (): string | null => {
+  const requireToken = useCallback((): string | null => {
     if (!token) {
-      setError("You are not authenticated. Please sign in again.");
+      setError({ message: "You are not authenticated. Please sign in again.", code: "unauthenticated" });
       return null;
     }
     return token;
-  };
+  }, [token]);
 
-  const refresh = async (): Promise<void> => {
+  const refresh = useCallback(async (): Promise<void> => {
     await withBusy("refresh", setBusy, async () => {
       setLoading(true);
       setError(null);
@@ -84,18 +85,25 @@ function SessionsPage() {
         setSessions(data);
         setDeletedSessions(deleted);
       } catch (err) {
-        setError((err as Error).message);
+        setError({
+          message: toErrorMessage(err),
+          code: err instanceof Error && "code" in err ? (err as { code?: string }).code : undefined
+        });
       } finally {
         setLoading(false);
       }
     });
-  };
+  }, [activeFilters, requireToken, setBusy, setLoading, setError, setSessions, setDeletedSessions]);
 
   useEffect(() => {
     void refresh();
-  }, [activeFilters.status, activeFilters.region]);
+  }, [refresh]);
 
   const onCreate = async (): Promise<void> => {
+    if (!region.trim()) {
+      setError({ message: "Please choose a valid region.", code: "invalid_argument" });
+      return;
+    }
     setError(null);
     const authToken = requireToken();
     if (!authToken) return;
@@ -104,7 +112,10 @@ function SessionsPage() {
         await createSession(region, authToken);
         await refresh();
       } catch (err) {
-        setError((err as Error).message);
+        setError({
+          message: toErrorMessage(err),
+          code: err instanceof Error && "code" in err ? (err as { code?: string }).code : undefined
+        });
       }
     });
   };
@@ -122,7 +133,10 @@ function SessionsPage() {
         await updateSessionStatus(sessionId, status, authToken);
         await refresh();
       } catch (err) {
-        setError((err as Error).message);
+        setError({
+          message: toErrorMessage(err),
+          code: err instanceof Error && "code" in err ? (err as { code?: string }).code : undefined
+        });
       }
     });
   };
@@ -155,7 +169,10 @@ function SessionsPage() {
         await deleteSession(sessionId, authToken);
         await refresh();
       } catch (err) {
-        setError((err as Error).message);
+        setError({
+          message: toErrorMessage(err),
+          code: err instanceof Error && "code" in err ? (err as { code?: string }).code : undefined
+        });
       }
     });
   };
@@ -189,7 +206,7 @@ function SessionsPage() {
             createDisabled={isBusy("create")}
           />
 
-          {error ? <ErrorBanner message={error} /> : null}
+          {error ? <ErrorBanner message={error.message} code={error.code} /> : null}
         </div>
       </header>
 

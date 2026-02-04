@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
+import { toErrorMessage } from "../api";
 import LoginCard from "../components/LoginCard";
 
 const mapAuthError = (message: string): string => {
@@ -34,6 +35,11 @@ function LoginPage() {
   }, [loading, token, navigate]);
 
   const onLogin = async (): Promise<void> => {
+    if (!email.trim() || !password.trim()) {
+      setStatus("error");
+      setMessage("Email and password are required.");
+      return;
+    }
     setStatus("loading");
     setMessage(null);
     try {
@@ -43,7 +49,7 @@ function LoginPage() {
       navigate("/", { replace: true });
     } catch (err) {
       setStatus("error");
-      setMessage(mapAuthError((err as Error).message));
+      setMessage(mapAuthError(toErrorMessage(err)));
     }
   };
 
