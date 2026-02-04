@@ -90,3 +90,59 @@ export const updateSessionStatus = async (
 
   return mapDocToSession(data, sessionId);
 };
+
+export const updateSessionRegion = async (
+  sessionId: string,
+  region: string
+): Promise<Session | null> => {
+  const docRef = sessionsCol.doc(sessionId);
+  const snap = await docRef.get();
+
+  if (!snap.exists) {
+    return null;
+  }
+
+  await docRef.update({
+    region,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+
+  const updatedSnap = await docRef.get();
+  const data = updatedSnap.data();
+
+  if (!data) {
+    throw new Error("Failed to read updated session");
+  }
+
+  return mapDocToSession(data, sessionId);
+};
+
+export const deleteSession = async (sessionId: string): Promise<boolean> => {
+  const docRef = sessionsCol.doc(sessionId);
+  const snap = await docRef.get();
+
+  if (!snap.exists) {
+    return false;
+  }
+
+  await docRef.delete();
+  return true;
+};
+
+export const listSessions = async (filters: {
+  status?: SessionStatus;
+  region?: string;
+}): Promise<Session[]> => {
+  let query: FirebaseFirestore.Query = sessionsCol;
+
+  if (filters.status) {
+    query = query.where("status", "==", filters.status);
+  }
+
+  if (filters.region) {
+    query = query.where("region", "==", filters.region);
+  }
+
+  const snap = await query.get();
+  return snap.docs.map((doc) => mapDocToSession(doc.data(), doc.id));
+};

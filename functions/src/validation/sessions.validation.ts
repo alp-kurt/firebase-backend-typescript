@@ -37,3 +37,21 @@ export const validateSessionId = (value: unknown): ValidationResult<string> => {
 
   return { ok: true, value: value.trim() };
 };
+
+export const validateOptionalRegion = (value: unknown): ValidationResult<string | undefined> => {
+  if (value === undefined) {
+    return { ok: true, value: undefined };
+  }
+
+  return validateRegion(value);
+};
+
+export const validateOptionalStatus = (
+  value: unknown
+): ValidationResult<SessionStatus | undefined> => {
+  if (value === undefined) {
+    return { ok: true, value: undefined };
+  }
+
+  return validateStatus(value);
+};
