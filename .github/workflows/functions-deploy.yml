@@ -1,9 +1,8 @@
 name: deploy-functions
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:

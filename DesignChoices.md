@@ -43,10 +43,6 @@ I used a lightweight in‑memory limiter for simplicity. Trade‑off: limits are
 ## Linting & CI/CD
 I tightened lint rules for both functions and frontend, added type‑aware linting, and introduced predeploy checks to run lint/build (and tests for functions). I also added Release Please for automated versioning/changelogs and a deploy workflow that publishes functions + hosting on version tags.
 
-Edge cases handled:
-- Lint blocks unused variables and unsafe patterns before deploy.
-- Predeploy checks fail fast on build/test errors.
-
 Trade‑offs:
 - TypeScript linting depends on a supported TS version, so I pinned functions to TS 5.5.x to avoid parser warnings.
 
