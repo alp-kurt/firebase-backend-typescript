@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/alp-kurt/firebase-backend-typescript/compare/v0.2.0...v0.2.1) (2026-02-04)
+
+
+### Bug Fixes
+
+* base url ([f34cedb](https://github.com/alp-kurt/firebase-backend-typescript/commit/f34cedbeb0c8b4e3b0c0c90355e5e506eb4e699c))
+
 ## [0.2.0](https://github.com/alp-kurt/firebase-backend-typescript/compare/v0.1.0...v0.2.0) (2026-02-04)
 
 
