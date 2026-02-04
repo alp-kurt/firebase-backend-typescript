@@ -2,6 +2,9 @@
 
 Firestore-backed session management API on Firebase Cloud Functions with a small Vite React admin console.
 
+## Live Demo
+https://alp-kurt.github.io/firebase-backend-typescript/login
+
 ## Setup
 1. Install backend dependencies:
 ```bash
@@ -34,13 +37,18 @@ npm run dev
 ```
 
 ## Manual Firebase Setup
-Some Firebase settings must be configured manually. See `FirebaseSetup.md`.
+Some Firebase settings must be configured manually. See [`FirebaseSetup.md`](./FirebaseSetup.md).
 
 ## Deploy
 Functions:
 ```bash
 cd functions
 npm run deploy:prod
+```
+Firestore rules:
+```bash
+cd functions
+npm run deploy:rules
 ```
 Predeploy checks (lint + test + build):
 ```bash
@@ -65,6 +73,7 @@ GitHub Pages (tagged releases):
 ## API Docs
 - Full endpoint list and examples: [`Endpoints.md`](./Endpoints.md)
 - Tests: [`Tests.md`](./Tests.md)
+- Changelog: [`CHANGELOG.md`](./CHANGELOG.md)
 
 ## Decisions / Trade-offs
 - Timestamps are serialized to ISO strings for client-friendly responses.

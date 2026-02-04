@@ -11,6 +11,7 @@
     "test": "jest",
     "serve": "firebase emulators:start --only functions,firestore",
     "deploy": "firebase deploy --only functions",
+    "deploy:rules": "firebase deploy --only firestore:rules",
     "predeploy:check": "npm run lint && npm run test && npm run build",
     "ci": "npm run lint && npm run test && npm run build",
     "deploy:prod": "npm run ci && firebase deploy --only functions",
