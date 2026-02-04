@@ -1,8 +1,10 @@
 import express from "express";
 import cors from "cors";
 import crypto from "crypto";
+import { logger } from "firebase-functions";
 import { sessionsRouter } from "./routes/sessions.routes";
 import { HttpError, sendError } from "./utils/http";
+import { getRequestId } from "./utils/requestId";
 
 export const app = express();
 
@@ -27,8 +29,9 @@ app.use((req, res, next) => {
   res.setHeader("x-request-id", requestId);
   const start = Date.now();
   res.on("finish", () => {
+    const resolvedRequestId = getRequestId(res);
     const log = {
-      requestId,
+      requestId: resolvedRequestId,
       method: req.method,
       path: req.path,
       status: res.statusCode,
@@ -36,7 +39,13 @@ app.use((req, res, next) => {
       ip: req.ip,
       userId: (req as { userId?: string }).userId
     };
-    console.log(JSON.stringify(log));
+    if (res.statusCode >= 500) {
+      logger.error("request_complete", log);
+    } else if (res.statusCode >= 400) {
+      logger.warn("request_complete", log);
+    } else {
+      logger.info("request_complete", log);
+    }
   });
   next();
 });
@@ -45,9 +54,11 @@ app.use("/api", sessionsRouter);
 
 app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err instanceof SyntaxError) {
+    logger.warn("invalid_json_body", { requestId: res.locals.requestId });
     sendError(res, new HttpError(400, "invalid_argument", "Invalid JSON body"));
     return;
   }
+  logger.error("unhandled_error", { requestId: res.locals.requestId, error: err instanceof Error ? err.message : err });
   sendError(res, new HttpError(500, "internal", "Internal server error"));
 });
 

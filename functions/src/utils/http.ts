@@ -1,5 +1,6 @@
 import type { Response } from "express";
 import type { ApiErrorBody } from "../types/api";
+import { getRequestId } from "./requestId";
 
 export class HttpError extends Error {
   public readonly status: number;
@@ -19,7 +20,7 @@ export const sendJson = <T>(res: Response, status: number, body: T): void => {
 };
 
 export const sendError = (res: Response, err: HttpError): void => {
-  const requestId = (res.locals as { requestId?: string }).requestId;
+  const requestId = getRequestId(res);
   const details = (() => {
     if (!requestId) return err.details;
     if (!err.details) return { requestId };

@@ -21,6 +21,14 @@ jest.mock("../src/services/sessions.service", () => ({
   updateSessionStatus: jest.fn()
 }));
 
+jest.mock("firebase-functions", () => ({
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn()
+  }
+}));
+
 const verifyIdTokenMock = jest.fn();
 
 jest.mock("firebase-admin", () => ({
@@ -233,6 +241,27 @@ describe("session handlers", () => {
       .set("x-request-id", "req-test-123");
 
     expect(res.headers["x-request-id"]).toBe("req-test-123");
+  });
+
+  test("logs do not include authorization header", async () => {
+    const { logger } = jest.requireMock("firebase-functions") as {
+      logger: { info: jest.Mock; warn: jest.Mock; error: jest.Mock };
+    };
+
+    await request(app)
+      .get("/api/sessions")
+      .set("Authorization", "Bearer secret-token")
+      .set("x-request-id", "req-safe-1");
+
+    const allLogs = [
+      ...logger.info.mock.calls,
+      ...logger.warn.mock.calls,
+      ...logger.error.mock.calls
+    ];
+
+    const flattened = JSON.stringify(allLogs);
+    expect(flattened).not.toContain("secret-token");
+    expect(flattened).not.toContain("Authorization");
   });
 
   test("idempotency key returns same session", async () => {
