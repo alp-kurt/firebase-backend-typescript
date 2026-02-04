@@ -193,4 +193,25 @@ describe("session handlers", () => {
     expect(res.body.error.code).toBe("unauthenticated");
   });
 
+  test("returns 405 for unsupported method", async () => {
+    const res = await request(app)
+      .put("/api/sessions")
+      .set("Authorization", authHeader());
+
+    expect(res.status).toBe(405);
+    expect(res.body.error.code).toBe("method_not_allowed");
+    expect(res.body.error.details.allowed).toContain("GET");
+  });
+
+  test("returns 400 for invalid JSON body", async () => {
+    const res = await request(app)
+      .post("/api/sessions")
+      .set("Authorization", authHeader())
+      .set("Content-Type", "application/json")
+      .send("{\"region\":");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("invalid_argument");
+  });
+
 });

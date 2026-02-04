@@ -30,6 +30,15 @@ export const sendError = (res: Response, err: HttpError): void => {
   res.status(err.status).json(body);
 };
 
+export const methodNotAllowed = (allowed: string[]) => {
+  return (res: Response): void => {
+    sendError(
+      res,
+      new HttpError(405, "method_not_allowed", "Method not allowed", { allowed })
+    );
+  };
+};
+
 export const toInternalError = (err: unknown): HttpError => {
   if (err instanceof HttpError) {
     return err;

@@ -10,6 +10,8 @@ Covered cases include:
 - Invalid status returns `400`.
 - Update status returns `200`.
 - Missing/invalid auth returns `401`.
+- Unsupported method returns `405`.
+- Invalid JSON body returns `400`.
 
 Validation tests cover invalid/valid `region`, `status`, and `sessionId`.
 

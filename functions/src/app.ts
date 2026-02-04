@@ -22,6 +22,14 @@ app.use(cors({
 app.use(express.json());
 app.use("/api", sessionsRouter);
 
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof SyntaxError) {
+    sendError(res, new HttpError(400, "invalid_argument", "Invalid JSON body"));
+    return;
+  }
+  sendError(res, new HttpError(500, "internal", "Internal server error"));
+});
+
 app.use((req, res) => {
   sendError(res, new HttpError(404, "not_found", "route not found"));
 });
