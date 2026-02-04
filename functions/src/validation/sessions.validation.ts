@@ -1,0 +1,39 @@
+import { SESSION_STATUSES, SessionStatus } from "../types/session";
+
+export type ValidationResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; message: string; details?: unknown };
+
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+
+export const validateRegion = (value: unknown): ValidationResult<string> => {
+  if (!isNonEmptyString(value)) {
+    return { ok: false, message: "region must be a non-empty string" };
+  }
+
+  return { ok: true, value: value.trim() };
+};
+
+export const isSessionStatus = (value: unknown): value is SessionStatus =>
+  typeof value === "string" && SESSION_STATUSES.includes(value as SessionStatus);
+
+export const validateStatus = (value: unknown): ValidationResult<SessionStatus> => {
+  if (!isSessionStatus(value)) {
+    return {
+      ok: false,
+      message: `status must be one of: ${SESSION_STATUSES.join(", ")}`,
+      details: { allowed: SESSION_STATUSES }
+    };
+  }
+
+  return { ok: true, value };
+};
+
+export const validateSessionId = (value: unknown): ValidationResult<string> => {
+  if (!isNonEmptyString(value)) {
+    return { ok: false, message: "sessionId must be a non-empty string" };
+  }
+
+  return { ok: true, value: value.trim() };
+};

@@ -1,0 +1,27 @@
+# Node
+node_modules/
+
+# Build output
+functions/lib/
+
+# Firebase
+.firebase/
+*.log
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+
+# Local env files
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+.vscode/
+
+# Tests
+coverage/
+
+# Temporary
+.tmp/
+.tmp*/
