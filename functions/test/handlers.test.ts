@@ -13,6 +13,7 @@ import {
 
 jest.mock("../src/services/sessions.service", () => ({
   createSession: jest.fn(),
+  createSessionIdempotent: jest.fn(),
   deleteSession: jest.fn(),
   getSession: jest.fn(),
   listSessions: jest.fn(),
@@ -232,6 +233,30 @@ describe("session handlers", () => {
       .set("x-request-id", "req-test-123");
 
     expect(res.headers["x-request-id"]).toBe("req-test-123");
+  });
+
+  test("idempotency key returns same session", async () => {
+    const session = makeSession({ sessionId: "idem-1" });
+    const createSessionIdempotent = jest.requireMock("../src/services/sessions.service")
+      .createSessionIdempotent as jest.MockedFunction<typeof import("../src/services/sessions.service").createSessionIdempotent>;
+    createSessionIdempotent.mockResolvedValue(session);
+
+    const first = await request(app)
+      .post("/api/sessions")
+      .set("Authorization", authHeader())
+      .set("Idempotency-Key", "abc-123")
+      .send({ region: "eu-central" });
+
+    const second = await request(app)
+      .post("/api/sessions")
+      .set("Authorization", authHeader())
+      .set("Idempotency-Key", "abc-123")
+      .send({ region: "eu-central" });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(first.body.sessionId).toBe("idem-1");
+    expect(second.body.sessionId).toBe("idem-1");
   });
 
 });

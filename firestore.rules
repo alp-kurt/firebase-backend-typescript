@@ -21,5 +21,9 @@ service cloud.firestore {
 
       allow delete: if false;
     }
+
+    match /idempotencyKeys/{keyId} {
+      allow read, write: if false;
+    }
   }
 }

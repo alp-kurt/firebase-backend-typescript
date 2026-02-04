@@ -1,5 +1,6 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { sessionsCol } from "../db/firestore";
+import crypto from "crypto";
+import { idempotencyCol, sessionsCol } from "../db/firestore";
 import { type Session, type SessionStatus } from "../types/session";
 import { isSessionStatus } from "../validation/sessions.validation";
 
@@ -47,6 +48,66 @@ export const createSession = async (region: string): Promise<Session> => {
 
   if (!data) {
     throw new Error("Failed to read created session");
+  }
+
+  return mapDocToSession(data, sessionId);
+};
+
+const idempotencyDocId = (key: string): string => {
+  return crypto.createHash("sha256").update(key).digest("hex");
+};
+
+const idempotencyTtlMs = (): number => {
+  const hours = Number.parseInt(process.env.IDEMPOTENCY_TTL_HOURS ?? "24", 10);
+  return Number.isFinite(hours) && hours > 0 ? hours * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+};
+
+export const createSessionIdempotent = async (
+  region: string,
+  key: string
+): Promise<Session> => {
+  const keyId = idempotencyDocId(key);
+  const idempotencyRef = idempotencyCol.doc(keyId);
+  const ttlMs = idempotencyTtlMs();
+  let sessionId: string | null = null;
+
+  await sessionsCol.firestore.runTransaction(async (tx) => {
+    const idempotencySnap = await tx.get(idempotencyRef);
+    if (idempotencySnap.exists) {
+      const data = idempotencySnap.data();
+      if (data && typeof data.sessionId === "string") {
+        sessionId = data.sessionId;
+        return;
+      }
+      throw new Error("Invalid idempotency record");
+    }
+
+    const docRef = sessionsCol.doc();
+    sessionId = docRef.id;
+
+    tx.set(docRef, {
+      sessionId,
+      region,
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    });
+
+    tx.set(idempotencyRef, {
+      sessionId,
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(Date.now() + ttlMs)
+    });
+  });
+
+  if (!sessionId) {
+    throw new Error("Failed to resolve idempotent session");
+  }
+
+  const snap = await sessionsCol.doc(sessionId).get();
+  const data = snap.data();
+  if (!data) {
+    throw new Error("Failed to read idempotent session");
   }
 
   return mapDocToSession(data, sessionId);

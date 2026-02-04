@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import {
   createSession,
+  createSessionIdempotent,
   deleteSession,
   getSession,
   listSessions,
@@ -10,6 +11,7 @@ import {
 import type { Session, SessionResponse } from "../types/session";
 import { HttpError, sendError, sendJson, toInternalError } from "../utils/http";
 import {
+  validateIdempotencyKey,
   validateOptionalRegion,
   validateOptionalStatus,
   validateRegion,
@@ -35,7 +37,14 @@ export const createSessionHandler = async (req: Request, res: Response): Promise
       throw new HttpError(400, "invalid_argument", regionResult.message, regionResult.details);
     }
 
-    const session = await createSession(regionResult.value);
+    const idempotencyResult = validateIdempotencyKey(req.header("Idempotency-Key"));
+    if (!idempotencyResult.ok) {
+      throw new HttpError(400, "invalid_argument", idempotencyResult.message, idempotencyResult.details);
+    }
+
+    const session = idempotencyResult.value
+      ? await createSessionIdempotent(regionResult.value, idempotencyResult.value)
+      : await createSession(regionResult.value);
     sendJson(res, 201, toResponse(session));
   } catch (err: unknown) {
     sendError(res, toInternalError(err));
