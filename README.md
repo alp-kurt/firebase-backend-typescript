@@ -36,6 +36,10 @@ cd frontend
 npm run dev
 ```
 
+## Cloning & Firebase Projects
+- After cloning, run `firebase login` and `firebase use --add` to select your own project.
+- Emulators run locally without a Firebase project, but deployments require a selected project.
+
 ## Manual Firebase Setup
 Some Firebase settings must be configured manually. See [`FirebaseSetup.md`](./FirebaseSetup.md).
 
@@ -74,6 +78,7 @@ GitHub Pages (tagged releases):
 - Full endpoint list and examples: [`Endpoints.md`](./Endpoints.md)
 - Tests: [`Tests.md`](./Tests.md)
 - Changelog: [`CHANGELOG.md`](./CHANGELOG.md)
+- Emulator guide: [`Emulators.md`](./Emulators.md)
 
 ## Decisions / Trade-offs
 - Timestamps are serialized to ISO strings for client-friendly responses.
