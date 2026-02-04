@@ -20,6 +20,14 @@ jest.mock("../src/services/sessions.service", () => ({
   updateSessionStatus: jest.fn()
 }));
 
+const verifyIdTokenMock = jest.fn();
+
+jest.mock("firebase-admin", () => ({
+  auth: () => ({
+    verifyIdToken: verifyIdTokenMock
+  })
+}));
+
 const mockCreateSession = createSession as jest.MockedFunction<typeof createSession>;
 const mockGetSession = getSession as jest.MockedFunction<typeof getSession>;
 const mockUpdateSessionStatus = updateSessionStatus as jest.MockedFunction<typeof updateSessionStatus>;
@@ -36,12 +44,19 @@ const makeSession = (overrides?: Partial<Session>): Session => ({
   ...overrides
 });
 
+const authHeader = (): string => "Bearer test-token";
+
 describe("session handlers", () => {
+  beforeEach(() => {
+    verifyIdTokenMock.mockResolvedValue({ uid: "admin-user" });
+  });
+
   test("POST /api/sessions returns 201", async () => {
     mockCreateSession.mockResolvedValue(makeSession());
 
     const res = await request(app)
       .post("/api/sessions")
+      .set("Authorization", authHeader())
       .send({ region: "eu-central" });
 
     expect(res.status).toBe(201);
@@ -52,6 +67,7 @@ describe("session handlers", () => {
   test("POST /api/sessions returns 400 for invalid body", async () => {
     const res = await request(app)
       .post("/api/sessions")
+      .set("Authorization", authHeader())
       .send({ region: "" });
 
     expect(res.status).toBe(400);
@@ -63,7 +79,8 @@ describe("session handlers", () => {
     mockGetSession.mockResolvedValue(null);
 
     const res = await request(app)
-      .get("/api/sessions/missing");
+      .get("/api/sessions/missing")
+      .set("Authorization", authHeader());
 
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe("not_found");
@@ -72,6 +89,7 @@ describe("session handlers", () => {
   test("PATCH /api/sessions/:id/status returns 400 for invalid status", async () => {
     const res = await request(app)
       .patch("/api/sessions/abc123/status")
+      .set("Authorization", authHeader())
       .send({ status: "bad" });
 
     expect(res.status).toBe(400);
@@ -85,6 +103,7 @@ describe("session handlers", () => {
 
     const res = await request(app)
       .patch("/api/sessions/abc123/status")
+      .set("Authorization", authHeader())
       .send({ status: "active" });
 
     expect(res.status).toBe(200);
@@ -98,6 +117,7 @@ describe("session handlers", () => {
 
     const res = await request(app)
       .get("/api/sessions")
+      .set("Authorization", authHeader())
       .query({ status: "active", region: "eu-central" });
 
     expect(res.status).toBe(200);
@@ -110,6 +130,7 @@ describe("session handlers", () => {
 
     const res = await request(app)
       .patch("/api/sessions/abc123")
+      .set("Authorization", authHeader())
       .send({ region: "us-east" });
 
     expect(res.status).toBe(200);
@@ -122,7 +143,8 @@ describe("session handlers", () => {
     );
 
     const res = await request(app)
-      .post("/api/sessions/abc123/complete");
+      .post("/api/sessions/abc123/complete")
+      .set("Authorization", authHeader());
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("completed");
@@ -134,7 +156,8 @@ describe("session handlers", () => {
     );
 
     const res = await request(app)
-      .post("/api/sessions/abc123/fail");
+      .post("/api/sessions/abc123/fail")
+      .set("Authorization", authHeader());
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("failed");
@@ -144,8 +167,30 @@ describe("session handlers", () => {
     mockDeleteSession.mockResolvedValue(true);
 
     const res = await request(app)
-      .delete("/api/sessions/abc123");
+      .delete("/api/sessions/abc123")
+      .set("Authorization", authHeader());
 
     expect(res.status).toBe(204);
   });
+
+  test("requests without auth are rejected", async () => {
+    const res = await request(app)
+      .post("/api/sessions")
+      .send({ region: "eu-central" });
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe("unauthenticated");
+  });
+
+  test("requests with invalid token are rejected", async () => {
+    verifyIdTokenMock.mockRejectedValue(new Error("bad token"));
+
+    const res = await request(app)
+      .post("/api/sessions")
+      .send({ region: "eu-central" })
+      .set("Authorization", "Bearer invalid");
+
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe("unauthenticated");
+  });
+
 });

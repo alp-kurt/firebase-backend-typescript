@@ -38,6 +38,7 @@ export const validateSessionId = (value: unknown): ValidationResult<string> => {
   return { ok: true, value: value.trim() };
 };
 
+
 export const validateOptionalRegion = (value: unknown): ValidationResult<string | undefined> => {
   if (value === undefined) {
     return { ok: true, value: undefined };

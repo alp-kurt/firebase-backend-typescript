@@ -29,21 +29,26 @@ const handle = async <T>(res: Response): Promise<T> => {
   return (await res.json()) as T;
 };
 
-export const listSessions = async (filters: {
-  status?: SessionStatus;
-  region?: string;
-}): Promise<Session[]> => {
+const authHeaders = (token?: string): HeadersInit =>
+  token ? { Authorization: `Bearer ${token}` } : {};
+
+export const listSessions = async (
+  filters: { status?: SessionStatus; region?: string },
+  token: string
+): Promise<Session[]> => {
   const params = new URLSearchParams();
   if (filters.status) params.set("status", filters.status);
   if (filters.region) params.set("region", filters.region);
-  const res = await fetch(`${API_BASE}/sessions?${params.toString()}`);
+  const res = await fetch(`${API_BASE}/sessions?${params.toString()}`, {
+    headers: authHeaders(token)
+  });
   return handle<Session[]>(res);
 };
 
-export const createSession = async (region: string): Promise<Session> => {
+export const createSession = async (region: string, token: string): Promise<Session> => {
   const res = await fetch(`${API_BASE}/sessions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify({ region })
   });
   return handle<Session>(res);
@@ -51,11 +56,12 @@ export const createSession = async (region: string): Promise<Session> => {
 
 export const updateSessionStatus = async (
   sessionId: string,
-  status: SessionStatus
+  status: SessionStatus,
+  token: string
 ): Promise<Session> => {
   const res = await fetch(`${API_BASE}/sessions/${sessionId}/status`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify({ status })
   });
   return handle<Session>(res);
@@ -63,33 +69,37 @@ export const updateSessionStatus = async (
 
 export const updateSessionRegion = async (
   sessionId: string,
-  region: string
+  region: string,
+  token: string
 ): Promise<Session> => {
   const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify({ region })
   });
   return handle<Session>(res);
 };
 
-export const completeSession = async (sessionId: string): Promise<Session> => {
+export const completeSession = async (sessionId: string, token: string): Promise<Session> => {
   const res = await fetch(`${API_BASE}/sessions/${sessionId}/complete`, {
-    method: "POST"
+    method: "POST",
+    headers: authHeaders(token)
   });
   return handle<Session>(res);
 };
 
-export const failSession = async (sessionId: string): Promise<Session> => {
+export const failSession = async (sessionId: string, token: string): Promise<Session> => {
   const res = await fetch(`${API_BASE}/sessions/${sessionId}/fail`, {
-    method: "POST"
+    method: "POST",
+    headers: authHeaders(token)
   });
   return handle<Session>(res);
 };
 
-export const deleteSession = async (sessionId: string): Promise<void> => {
+export const deleteSession = async (sessionId: string, token: string): Promise<void> => {
   const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-    method: "DELETE"
+    method: "DELETE",
+    headers: authHeaders(token)
   });
   await handle(res);
 };

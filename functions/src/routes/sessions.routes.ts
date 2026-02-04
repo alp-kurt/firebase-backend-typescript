@@ -9,12 +9,15 @@ import {
   updateSessionStatusHandler,
   failSessionHandler
 } from "../handlers/sessions.handlers";
+import { requireAuth } from "../utils/auth";
 
 export const sessionsRouter = Router();
 
+sessionsRouter.use(requireAuth);
+
 sessionsRouter.get("/sessions", listSessionsHandler);
-sessionsRouter.post("/sessions", createSessionHandler);
 sessionsRouter.get("/sessions/:sessionId", getSessionHandler);
+sessionsRouter.post("/sessions", createSessionHandler);
 sessionsRouter.patch("/sessions/:sessionId", updateSessionRegionHandler);
 sessionsRouter.patch("/sessions/:sessionId/status", updateSessionStatusHandler);
 sessionsRouter.post("/sessions/:sessionId/complete", completeSessionHandler);

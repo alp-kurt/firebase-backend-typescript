@@ -1,17 +1,31 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   font-family: "Space Grotesk", system-ui, sans-serif;
+  color-scheme: light;
+  --ink: #0b1220;
+  --mist: #f4f6fb;
+  --sea: #0ea5a6;
+  --coral: #f97316;
+  --iris: #8b5cf6;
 }
 
 body {
   margin: 0;
+  background: radial-gradient(circle at top left, #f0f4ff, #f4f6fb 45%, #f7fafc 100%);
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
 }
 
 .card {
-  @apply rounded-2xl bg-white shadow-sm border border-slate-100;
+  @apply rounded-2xl border border-slate-100 shadow-sm;
 }
 
 .btn {
@@ -42,6 +56,10 @@ body {
   @apply rounded-full px-2.5 py-1 text-xs font-semibold;
 }
 
+.badge-lg {
+  @apply inline-flex h-10 items-center px-5 text-sm mx-2;
+}
+
 .badge-pending {
   @apply badge bg-amber-100 text-amber-800;
 }
@@ -56,4 +74,19 @@ body {
 
 .badge-failed {
   @apply badge bg-rose-100 text-rose-800;
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

@@ -5,7 +5,20 @@ import { HttpError, sendError } from "./utils/http";
 
 export const app = express();
 
-app.use(cors({ origin: true }));
+const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.length === 0) {
+      callback(null, true);
+      return;
+    }
+    callback(null, allowedOrigins.includes(origin));
+  }
+}));
 app.use(express.json());
 app.use("/api", sessionsRouter);
 

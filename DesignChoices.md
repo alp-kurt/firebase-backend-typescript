@@ -1,13 +1,34 @@
 # Design Choices
 
 ## Tests
-I added lightweight integration-style tests around the HTTP handlers using `supertest` and Jest. These tests exercise the Express routes and validate response status codes and error shapes without requiring the Firestore emulator. The Firestore service layer is mocked so the tests stay fast and deterministic.
+I added Jest + Supertest tests around the HTTP handlers and validation utilities. The Firestore service layer is mocked so tests stay fast and deterministic.
 
-Covered cases:
-- Valid create session request returns `201` with the expected body.
-- Invalid create request returns `400` with `invalid_argument`.
-- Missing session returns `404` with `not_found`.
-- Invalid status update returns `400` with `invalid_argument`.
-- Valid status update returns `200` and the new status.
+Covered cases include:
+- Valid create session returns `201`.
+- Invalid body returns `400`.
+- Missing session returns `404`.
+- Invalid status returns `400`.
+- Update status returns `200`.
+- Missing/invalid auth returns `401`.
 
-I also added direct validation tests to ensure runtime checks reject bad input and accept valid values.
+Validation tests cover invalid/valid `region`, `status`, and `sessionId`.
+
+## Authentication
+Firebase Auth only. All endpoints require `Authorization: Bearer <idToken>` and the frontend uses email/password login.
+
+Edge cases handled:
+- Missing/invalid token → `401`.
+- Login shows friendly errors for common Firebase Auth failures.
+- Turned off new sign ups from Firebase Console
+
+Uncovered:
+- MFA/lockouts, audit logging, and explicit token refresh UI.
+
+## Frontend UI
+I designed the UI, focusing on a single user admin console with a clean two‑route flow: a dedicated login screen and a protected sessions workspace. The sessions workspace is organized around a small set of predictable modules—header actions, a compact stats strip, a single control panel for create/filter, and a card‑based session list.
+
+Edge cases handled:
+- Protected routes redirect to `/login` when unauthenticated.
+- In‑flight actions are disabled to prevent double submits.
+- Create, delete, and status updates require confirmation modals.
+
