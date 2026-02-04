@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { sessionsCol } from "../db/firestore";
-import { SESSION_STATUSES, type Session, type SessionStatus } from "../types/session";
+import { type Session, type SessionStatus } from "../types/session";
+import { isSessionStatus } from "../validation/sessions.validation";
 
 const mapDocToSession = (data: FirebaseFirestore.DocumentData, sessionId: string): Session => {
   const region = data.region;
@@ -12,7 +13,7 @@ const mapDocToSession = (data: FirebaseFirestore.DocumentData, sessionId: string
     throw new Error("Invalid session data in Firestore");
   }
 
-  if (!SESSION_STATUSES.includes(status as SessionStatus)) {
+  if (!isSessionStatus(status)) {
     throw new Error("Invalid session status in Firestore");
   }
 
@@ -23,7 +24,7 @@ const mapDocToSession = (data: FirebaseFirestore.DocumentData, sessionId: string
   return {
     sessionId,
     region,
-    status: status as SessionStatus,
+    status,
     createdAt,
     updatedAt
   };

@@ -32,3 +32,5 @@ Edge cases handled:
 - In‑flight actions are disabled to prevent double submits.
 - Create, delete, and status updates require confirmation modals.
 
+## Type Safety
+Both backend and frontend use explicit type guards for status parsing, and the frontend shares a single source of truth for allowed statuses.

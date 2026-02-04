@@ -1,5 +1,6 @@
 import React from "react";
 import type { SessionStatus } from "../api";
+import { parseStatus } from "../utils/session";
 
 interface StatusUpdateModalProps {
   open: boolean;
@@ -40,7 +41,10 @@ function StatusUpdateModal({
         <select
           className="input mt-2"
           value={nextStatus}
-          onChange={(event) => onChange(event.target.value as SessionStatus)}
+          onChange={(event) => {
+            const parsed = parseStatus(event.target.value);
+            if (parsed) onChange(parsed);
+          }}
         >
           {statuses
             .filter((value) => value !== currentStatus)

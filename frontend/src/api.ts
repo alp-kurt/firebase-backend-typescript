@@ -1,4 +1,5 @@
-export type SessionStatus = "pending" | "active" | "completed" | "failed";
+import type { SessionStatus } from "./utils/statuses";
+export type { SessionStatus };
 
 export interface Session {
   sessionId: string;

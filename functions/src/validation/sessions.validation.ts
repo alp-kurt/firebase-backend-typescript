@@ -15,8 +15,10 @@ export const validateRegion = (value: unknown): ValidationResult<string> => {
   return { ok: true, value: value.trim() };
 };
 
+const sessionStatusSet = new Set<string>(SESSION_STATUSES);
+
 export const isSessionStatus = (value: unknown): value is SessionStatus =>
-  typeof value === "string" && SESSION_STATUSES.includes(value as SessionStatus);
+  typeof value === "string" && sessionStatusSet.has(value);
 
 export const validateStatus = (value: unknown): ValidationResult<SessionStatus> => {
   if (!isSessionStatus(value)) {

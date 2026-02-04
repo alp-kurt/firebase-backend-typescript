@@ -1,4 +1,5 @@
 import type { SessionStatus } from "../api";
+import { isSessionStatus } from "./statuses";
 
 export const statusBadge = (status: SessionStatus): string => {
   switch (status) {
@@ -17,3 +18,6 @@ export const statusBadge = (status: SessionStatus): string => {
 
 export const formatDate = (value: string): string =>
   new Date(value).toLocaleString();
+
+export const parseStatus = (value: string): SessionStatus | null =>
+  isSessionStatus(value) ? value : null;

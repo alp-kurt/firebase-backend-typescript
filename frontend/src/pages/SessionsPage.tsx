@@ -17,8 +17,10 @@ import StatsStrip from "../components/StatsStrip";
 import StatusUpdateModal from "../components/StatusUpdateModal";
 import { REGIONS } from "../utils/regions";
 import { withBusy } from "../utils/requestGuard";
+import { SESSION_STATUSES } from "../utils/statuses";
+import { parseStatus } from "../utils/session";
 
-const statuses: SessionStatus[] = ["pending", "active", "completed", "failed"];
+const statuses: SessionStatus[] = [...SESSION_STATUSES];
 
 const emptyFilters = { status: "", region: "" } as const;
 
@@ -39,7 +41,7 @@ function SessionsPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const activeFilters = useMemo(() => ({
-    status: filters.status ? (filters.status as SessionStatus) : undefined,
+    status: parseStatus(filters.status) ?? undefined,
     region: filters.region || undefined
   }), [filters]);
 
